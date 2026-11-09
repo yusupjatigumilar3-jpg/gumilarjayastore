@@ -27,7 +27,7 @@ export default async function AdminInvoiceDetail({
     .from('invoice_items')
     .select('*')
     .eq('invoice_id', invoice.id)
-    .order('id');
+    .order('created_at');
 
   const settings = await getSettings();
   // Link/QR di kwitansi cetak harus selalu domain resmi, bukan domain tempat admin kebetulan membuka halaman
