@@ -26,7 +26,7 @@ export default async function InvoicePublicPage({
     .from('invoice_items')
     .select('*')
     .eq('invoice_id', invoice.id)
-    .order('id');
+    .order('created_at');
 
   const settings = await getSettings();
 

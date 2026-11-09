@@ -20,7 +20,7 @@ export default async function EditInvoicePage({
   if (!invoice) notFound();
 
   const [{ data: items }, { data: products }, customerRes] = await Promise.all([
-    supabase.from('invoice_items').select('*').eq('invoice_id', invoice.id).order('id'),
+    supabase.from('invoice_items').select('*').eq('invoice_id', invoice.id).order('created_at'),
     supabase.from('products').select('id, name, price').order('name'),
     // Muat pelanggan yang tertaut agar form edit menampilkan & mempertahankan relasinya
     // (sebelumnya form edit selalu tampil tanpa pelanggan dan kolom datanya tersembunyi).
