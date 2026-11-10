@@ -1,38 +1,63 @@
+import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { formatRupiah, formatDateTime } from '@/lib/utils';
+import { parsePage, pageRange, totalPagesOf, safeSearch, listHref } from '@/lib/list-helpers';
+import { PageHeader, SearchBar, Pagination, EmptyState, ErrorNote, StatusBadge } from '@/components/admin/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Pesanan' };
 
-export default async function OrdersPage() {
+type SearchParams = { q?: string; page?: string };
+
+export default async function OrdersPage({ searchParams }: { searchParams: SearchParams }) {
+  const q = safeSearch(searchParams.q);
+  const page = parsePage(searchParams.page);
+
   const supabase = createAdminClient();
-  const { data: orders } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-  const list = orders || [];
+  let query = supabase
+    .from('orders')
+    .select('id, order_number, created_at, customer_name, total, status', { count: 'exact' });
+  if (q) query = query.or(`order_number.ilike.%${q}%,customer_name.ilike.%${q}%`);
+
+  const [from, to] = pageRange(page);
+  const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
+
+  const totalPages = totalPagesOf(count);
+  if (page > totalPages) redirect(listHref('/admin/pesanan', { q, page: totalPages }));
+
+  const list = (data || []) as any[];
 
   return (
     <>
-      <h1 style={{ marginBottom: 24 }}>Pesanan <span style={{ color: '#94a3b8', fontWeight: 500 }}>({list.length})</span></h1>
+      <PageHeader title="Pesanan" count={count ?? 0} />
       <div className="admin-card">
+        <SearchBar q={q} placeholder="Cari nomor pesanan atau nama…" reset={q ? '/admin/pesanan' : undefined} />
+        <ErrorNote message={error?.message} />
+
         {list.length === 0 ? (
-          <p style={{ color: '#64748b', padding: '40px 0', textAlign: 'center' }}>Belum ada pesanan.</p>
+          <EmptyState>{q ? 'Tidak ada pesanan yang cocok.' : 'Belum ada pesanan.'}</EmptyState>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Nomor</th><th>Tanggal</th><th>Pelanggan</th><th style={{textAlign:'right'}}>Total</th><th>Status</th></tr></thead>
+              <thead>
+                <tr><th>Nomor</th><th>Tanggal</th><th>Pelanggan</th><th className="a-num">Total</th><th>Status</th></tr>
+              </thead>
               <tbody>
-                {list.map((o: any) => (
+                {list.map((o) => (
                   <tr key={o.id}>
                     <td><b>{o.order_number}</b></td>
-                    <td>{formatDateTime(o.created_at)}</td>
+                    <td className="a-muted">{formatDateTime(o.created_at)}</td>
                     <td><b>{o.customer_name}</b></td>
-                    <td style={{ textAlign: 'right' }}><b>{formatRupiah(o.total)}</b></td>
-                    <td><span className={`status-badge status-${o.status}`}>{o.status}</span></td>
+                    <td className="a-num"><b>{formatRupiah(o.total)}</b></td>
+                    <td><StatusBadge status={o.status} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+
+        <Pagination base="/admin/pesanan" params={{ q }} page={page} totalPages={totalPages} />
       </div>
     </>
   );

@@ -1,29 +1,33 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
 
 export async function GET() {
-  const s = createClient();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await getAdminUser())) return unauthorized();
   const admin = createAdminClient();
-  const { data } = await admin.from('testimonials').select('*').order('sort_order');
+  const { data, error } = await admin.from('testimonials').select('*').order('sort_order');
+  if (error) return serverError(error.message);
   return NextResponse.json({ data });
 }
 
 export async function POST(request: Request) {
-  const s = createClient();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const b = await request.json();
+  if (!(await getAdminUser())) return unauthorized();
+  const b = await readJson(request);
+  if (!b) return badRequest('Data tidak valid.');
+
+  const name = String(b.name ?? '').trim().slice(0, 120);
+  const content = String(b.content ?? '').trim().slice(0, 2000);
+  if (!name || !content) return badRequest('Nama dan isi testimoni wajib diisi.');
+
+  const sort = Math.round(Number(b.sort_order));
   const admin = createAdminClient();
   const { error } = await admin.from('testimonials').insert({
-    name: b.name,
-    city: b.city || '',
-    product_type: b.product_type || '',
-    content: b.content,
-    sort_order: b.sort_order || 0,
+    name,
+    city: String(b.city ?? '').trim().slice(0, 120),
+    product_type: String(b.product_type ?? '').trim().slice(0, 120),
+    content,
+    sort_order: Number.isFinite(sort) ? sort : 0,
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error.message);
   return NextResponse.json({ ok: true });
 }

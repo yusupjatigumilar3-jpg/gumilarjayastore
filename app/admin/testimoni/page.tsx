@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { PageHeader } from "@/components/admin/ui";
 import TestimonialManager from '@/components/TestimonialManager';
 import type { Testimonial } from '@/lib/types';
 
@@ -10,7 +11,7 @@ export default async function AdminTestimonialsPage() {
   const { data } = await supabase.from('testimonials').select('*').order('sort_order');
   return (
     <>
-      <h1 style={{ marginBottom: 24 }}>Testimoni</h1>
+      <PageHeader title="Testimoni" />
       <TestimonialManager initial={(data || []) as Testimonial[]} />
     </>
   );

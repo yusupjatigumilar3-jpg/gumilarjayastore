@@ -1,47 +1,31 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-
-function slugify(s: string) {
-  return String(s).toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-');
-}
+import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
+import { validateProduct, makeSlug } from '@/lib/product-input';
 
 export async function POST(request: Request) {
   try {
-    const s = createClient();
-    const { data: { user } } = await s.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!(await getAdminUser())) return unauthorized();
+    const body = await readJson(request);
+    if (!body) return badRequest('Data tidak valid.');
 
-    const body = await request.json();
+    const parsed = validateProduct(body);
+    if (!parsed.ok) return badRequest(parsed.error);
+
     const admin = createAdminClient();
-
-    const slug = body.slug || `${slugify(body.name)}-${Date.now().toString().slice(-4)}`;
-
-    const { data, error } = await admin
-      .from('products')
-      .insert({
-        name: body.name,
-        slug,
-        category_id: body.category_id || null,
-        type: body.type || 'digital',
-        price: parseInt(body.price) || 0,
-        discount_price: body.discount_price ? parseInt(body.discount_price) : null,
-        description: body.description || '',
-        image: body.image || null,
-        stock: parseInt(body.stock) || 0,
-        download_url: body.download_url || null,
-        is_featured: !!body.is_featured,
-        is_new: !!body.is_new,
-        service_type: body.service_type || null,
-        requires_manual_price: !!body.requires_manual_price,
-        default_admin_fee: parseInt(body.default_admin_fee) || 0,
-      })
-      .select()
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, product: data });
+    // Slug dibuat acak di belakang, dicoba ulang bila bentrok (kode 23505 = nilai kembar).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const slug = parsed.value.slug && attempt === 0 ? parsed.value.slug : makeSlug(parsed.value.name);
+      const { data, error } = await admin
+        .from('products')
+        .insert({ ...parsed.value, slug })
+        .select('id, slug')
+        .single();
+      if (!error) return NextResponse.json({ ok: true, product: data });
+      if (error.code !== '23505') return serverError(error.message);
+    }
+    return serverError('Gagal membuat alamat (slug) unik. Coba lagi.');
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Gagal menyimpan' }, { status: 500 });
+    return serverError(err.message || 'Gagal menyimpan');
   }
 }

@@ -1,123 +1,126 @@
 import Link from 'next/link';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { formatRupiah, formatDateTime } from '@/lib/utils';
+import { formatRupiah, formatDate, todayWib } from '@/lib/utils';
+import { PageHeader, StatusBadge, EmptyState } from '@/components/admin/ui';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Dashboard' };
 
 export default async function AdminDashboard() {
   const supabase = createAdminClient();
+  const today = todayWib();
+  const head = { count: 'exact' as const, head: true };
 
-  const [
-    { count: totalProducts },
-    { count: totalCategories },
-    { count: totalTestimonials },
-    { count: totalFaqs },
-    { count: totalSubscribers },
-    { count: totalInvoices },
-    { data: recentInvoices },
-    { data: recentProducts },
-  ] = await Promise.all([
-    supabase.from('products').select('*', { count: 'exact', head: true }),
-    supabase.from('categories').select('*', { count: 'exact', head: true }),
-    supabase.from('testimonials').select('*', { count: 'exact', head: true }),
-    supabase.from('faqs').select('*', { count: 'exact', head: true }),
-    supabase.from('subscribers').select('*', { count: 'exact', head: true }),
-    supabase.from('invoices').select('*', { count: 'exact', head: true }),
-    supabase.from('invoices').select('id, invoice_number, customer_name, total, status, created_at').order('created_at', { ascending: false }).limit(5),
-    supabase.from('products').select('id, name, price, created_at').order('created_at', { ascending: false }).limit(5),
+  const [paid, sent, overdue, draft, products, customers, recent, overdueList] = await Promise.all([
+    supabase.from('invoices').select('id', head).eq('status', 'dibayar'),
+    supabase.from('invoices').select('id', head).eq('status', 'terkirim'),
+    supabase.from('invoices').select('id', head).eq('status', 'terkirim').lt('due_date', today),
+    supabase.from('invoices').select('id', head).eq('status', 'draft'),
+    supabase.from('products').select('id', head),
+    supabase.from('customers').select('id', head).eq('is_archived', false),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, customer_name, total, status')
+      .order('created_at', { ascending: false })
+      .limit(6),
+    supabase
+      .from('invoices')
+      .select('id, invoice_number, customer_name, total, due_date')
+      .eq('status', 'terkirim')
+      .lt('due_date', today)
+      .order('due_date', { ascending: true })
+      .limit(6),
   ]);
 
   const stats = [
-    { label: 'Produk', value: totalProducts || 0, href: '/admin/produk' },
-    { label: 'Kategori', value: totalCategories || 0, href: '/admin/kategori' },
-    { label: 'Testimoni', value: totalTestimonials || 0, href: '/admin/testimoni' },
-    { label: 'FAQ', value: totalFaqs || 0, href: '/admin/faq' },
-    { label: 'Kwitansi', value: totalInvoices || 0, href: '/admin/kwitansi' },
-    { label: 'Pelanggan', value: totalSubscribers || 0, href: '/admin/pelanggan' },
+    { label: 'Kwitansi lunas', value: paid.count, href: '/admin/kwitansi?status=dibayar', tone: 'good' },
+    { label: 'Menunggu pembayaran', value: sent.count, href: '/admin/kwitansi?status=terkirim', tone: 'info' },
+    { label: 'Lewat jatuh tempo', value: overdue.count, href: '/admin/kwitansi?status=terkirim', tone: (overdue.count ?? 0) > 0 ? 'warn' : '' },
+    { label: 'Draft', value: draft.count, href: '/admin/kwitansi?status=draft', tone: '' },
+    { label: 'Pelanggan', value: customers.count, href: '/admin/pelanggan-customers', tone: '' },
+    { label: 'Produk', value: products.count, href: '/admin/produk', tone: '' },
   ];
+
+  const recentList = recent.data || [];
+  const lateList = overdueList.data || [];
 
   return (
     <>
-      <h1 style={{ marginBottom: 24 }}>Dashboard</h1>
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <>
+            <Link href="/admin/kwitansi/baru" className="btn btn-primary">+ Kwitansi</Link>
+            <Link href="/admin/produk/baru" className="btn btn-ghost">+ Produk</Link>
+          </>
+        }
+      />
 
-      <div className="stat-grid">
+      <div className="a-stats">
         {stats.map((s) => (
-          <Link key={s.label} href={s.href} className="stat-card">
-            <b>{s.value}</b>
+          <Link key={s.label} href={s.href} className={`a-stat ${s.tone}`}>
+            <b>{(s.value ?? 0).toLocaleString('id-ID')}</b>
             <span>{s.label}</span>
           </Link>
         ))}
       </div>
 
-      <div className="admin-grid-2">
-        <div className="admin-card">
-          <div className="admin-card-head">
-            <h3>Kwitansi Terbaru</h3>
-            <Link href="/admin/kwitansi" className="btn btn-ghost" style={{ fontSize: '.8rem', padding: '6px 12px' }}>
-              Lihat semua
-            </Link>
+      <div className="a-grid-2">
+        <section className="admin-card">
+          <div className="a-card-title">
+            <h3>Kwitansi terbaru</h3>
+            <Link href="/admin/kwitansi" className="a-link">Lihat semua</Link>
           </div>
-          {!recentInvoices || recentInvoices.length === 0 ? (
-            <p style={{ color: 'var(--muted)', padding: '20px 0' }}>Belum ada kwitansi.</p>
+          {recentList.length === 0 ? (
+            <EmptyState>Belum ada kwitansi.</EmptyState>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Nomor</th>
-                  <th>Pelanggan</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentInvoices.map((inv) => (
-                  <tr key={inv.id}>
-                    <td>
-                      <Link href={`/admin/kwitansi/${inv.id}`} style={{ color: 'var(--blue)', fontWeight: 600 }}>
-                        {inv.invoice_number}
-                      </Link>
-                    </td>
-                    <td>{inv.customer_name}</td>
-                    <td><b>{formatRupiah(inv.total || 0)}</b></td>
-                    <td><span className={`status-badge status-${inv.status}`}>{inv.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Nomor</th><th>Pelanggan</th><th className="a-num">Total</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {recentList.map((inv: any) => (
+                    <tr key={inv.id}>
+                      <td><Link href={`/admin/kwitansi/${inv.id}`} className="a-row-link">{inv.invoice_number}</Link></td>
+                      <td>{inv.customer_name}</td>
+                      <td className="a-num"><b>{formatRupiah(inv.total)}</b></td>
+                      <td><StatusBadge status={inv.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </section>
 
-        <div className="admin-card">
-          <div className="admin-card-head">
-            <h3>Produk Terbaru</h3>
-            <Link href="/admin/produk" className="btn btn-ghost" style={{ fontSize: '.8rem', padding: '6px 12px' }}>
-              Lihat semua
-            </Link>
+        <section className="admin-card">
+          <div className="a-card-title">
+            <h3>Perlu ditagih</h3>
+            <Link href="/admin/kwitansi?status=terkirim" className="a-link">Lihat semua</Link>
           </div>
-          {!recentProducts || recentProducts.length === 0 ? (
-            <p style={{ color: 'var(--muted)', padding: '20px 0' }}>Belum ada produk.</p>
+          {lateList.length === 0 ? (
+            <EmptyState>Tidak ada kwitansi yang lewat jatuh tempo.</EmptyState>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Nama</th>
-                  <th>Harga</th>
-                  <th>Ditambahkan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentProducts.map((p) => (
-                  <tr key={p.id}>
-                    <td><b>{p.name}</b></td>
-                    <td>{formatRupiah(p.price)}</td>
-                    <td style={{ fontSize: '.8rem', color: 'var(--muted)' }}>{formatDateTime(p.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Nomor</th><th>Pelanggan</th><th className="a-num">Total</th><th>Jatuh tempo</th></tr>
+                </thead>
+                <tbody>
+                  {lateList.map((inv: any) => (
+                    <tr key={inv.id}>
+                      <td><Link href={`/admin/kwitansi/${inv.id}`} className="a-row-link">{inv.invoice_number}</Link></td>
+                      <td>{inv.customer_name}</td>
+                      <td className="a-num"><b>{formatRupiah(inv.total)}</b></td>
+                      <td className="a-muted">{formatDate(inv.due_date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </section>
       </div>
     </>
   );

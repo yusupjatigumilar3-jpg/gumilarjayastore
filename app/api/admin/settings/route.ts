@@ -1,41 +1,35 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
 
 export async function GET() {
-  const s = createClient();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await getAdminUser())) return unauthorized();
 
   const admin = createAdminClient();
   const { data, error } = await admin.from('settings').select('*');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error.message);
   return NextResponse.json({ data });
 }
 
 export async function POST(request: Request) {
-  const s = createClient();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await getAdminUser())) return unauthorized();
 
-  const body = await request.json();
+  const body = await readJson(request);
+  if (!body || Object.keys(body).length === 0) return badRequest('Body kosong');
 
-  if (!body || typeof body !== 'object' || Object.keys(body).length === 0) {
-    return NextResponse.json({ error: 'Body kosong' }, { status: 400 });
+  // Kunci pengaturan hanya huruf kecil, angka, dan garis bawah; nilai dibatasi panjangnya.
+  const rows: { key: string; value: string }[] = [];
+  for (const [key, value] of Object.entries(body)) {
+    if (!/^[a-z0-9_]{1,64}$/.test(key)) return badRequest(`Nama pengaturan tidak valid: ${key}`);
+    rows.push({ key, value: String(value ?? '').slice(0, 5000) });
   }
 
   const admin = createAdminClient();
-
-  const rows = Object.entries(body).map(([key, value]) => ({
-    key,
-    value: String(value ?? ''),
-  }));
-
   const { error } = await admin.from('settings').upsert(rows, { onConflict: 'key' });
 
   if (error) {
     console.error('Settings save error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return serverError(error.message);
   }
 
   return NextResponse.json({ ok: true, saved: rows.length });
