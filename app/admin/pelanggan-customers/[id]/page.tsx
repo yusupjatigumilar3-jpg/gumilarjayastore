@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import CustomerForm from '@/components/CustomerForm';
 import DeleteButton from '@/components/DeleteButton';
 import { formatRupiah, formatDate } from '@/lib/utils';
+import { StatusBadge } from '@/components/admin/ui';
 import type { Customer, Invoice } from '@/lib/types';
 import Link from 'next/link';
 
@@ -30,7 +31,9 @@ export default async function CustomerDetailPage({
     .order('created_at', { ascending: false })
     .limit(20);
 
-  const c = customer as Customer;
+  // Data relasi datang sebagai `customer_ids`, sedangkan form membaca `ids`.
+  // Dulu tidak dipetakan: form tampil tanpa ID, dan menyimpan akan MENGHAPUS semua ID pelanggan.
+  const c = { ...customer, ids: (customer as any).customer_ids || [] } as Customer;
   const list = (invoices || []) as any[];
 
   const totalSpent = list.reduce((s, i) => s + (i.total || 0), 0);
@@ -46,13 +49,31 @@ export default async function CustomerDetailPage({
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link href="/admin/pelanggan-customers" className="btn btn-ghost">← Kembali</Link>
-          <DeleteButton
-            url={`/api/admin/customers/${c.id}`}
-            label="Arsipkan"
-            confirmMessage={`Arsipkan pelanggan "${c.name}"?`}
-          />
+          {c.is_archived ? (
+            <DeleteButton
+              url={`/api/admin/customers/${c.id}`}
+              method="PATCH"
+              body={{ restore: true }}
+              label="Pulihkan"
+              variant="primary"
+              confirmMessage=""
+            />
+          ) : (
+            <DeleteButton
+              url={`/api/admin/customers/${c.id}`}
+              label="Arsipkan"
+              confirmMessage={`Arsipkan pelanggan "${c.name}"? Kwitansi lamanya tetap tersimpan, dan pelanggan bisa dipulihkan dari daftar arsip.`}
+              redirectTo="/admin/pelanggan-customers"
+            />
+          )}
         </div>
       </div>
+
+      {c.is_archived && (
+        <p className="a-alert" style={{ background: '#fef3c7', color: '#92400e' }}>
+          Pelanggan ini diarsipkan, jadi tidak muncul di daftar aktif dan pemilih pelanggan di form kwitansi.
+        </p>
+      )}
 
       <div className="admin-grid-2" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start', marginBottom: 20 }}>
         <div style={{
@@ -123,7 +144,7 @@ export default async function CustomerDetailPage({
                   <td>{inv.category || '—'}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatRupiah(inv.total)}</td>
                   <td>
-                    <span className={`status-badge status-${inv.status}`}>{inv.status}</span>
+                    <StatusBadge status={inv.status} />
                   </td>
                 </tr>
               ))}

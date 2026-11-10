@@ -50,3 +50,8 @@ Opsional: `NEXT_PUBLIC_WHATSAPP` (nomor WhatsApp di halaman produk).
 - Semua tabel memakai Row Level Security. Pengunjung (anon key) hanya bisa membaca etalase toko: produk, kategori, testimoni dan FAQ aktif, serta pengaturan. Data pelanggan, kwitansi, dan pelanggan newsletter hanya bisa diakses lewat service role (server Vercel).
 - Kolom `download_url` produk ikut terbaca publik karena halaman toko memakai `select('*')`. Jangan taruh link unduhan berbayar di sana sebelum alur pembayaran dibuat.
 - Kolom `tax` di tabel `invoices` dipakai sebagai **Biaya Admin**.
+
+## Kecepatan
+
+- **Samakan wilayah server.** Di Vercel: Project → **Settings → Functions → Function Region**, pilih wilayah yang sama (atau terdekat) dengan project Supabase Anda. Wilayah Supabase terlihat di Supabase → Project Settings → General. Jika Supabase di Singapura tetapi Vercel di Amerika, setiap query menempuh perjalanan bolak-balik antar benua dan itu penyebab terbesar halaman terasa lambat. Setelah mengubahnya, **Redeploy**.
+- Pengaturan situs dan profil admin disimpan di cache 5 menit; menyimpan di **Admin → Pengaturan** langsung membuang cache itu.

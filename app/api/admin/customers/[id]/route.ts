@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
+import { parseCustomer, buildIdRows } from '@/lib/customer-input';
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   if (!(await getAdminUser())) return unauthorized();
@@ -22,20 +23,26 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const body = await readJson(request);
   if (!body) return badRequest('Data tidak valid.');
 
-  const name = String(body.name ?? '').trim().slice(0, 200);
-  if (!name) return badRequest('Nama pelanggan wajib diisi.');
-
   const admin = createAdminClient();
+
+  // Pulihkan pelanggan yang diarsipkan.
+  if (body.restore === true) {
+    const { data: restored, error: restoreErr } = await admin
+      .from('customers')
+      .update({ is_archived: false })
+      .eq('id', params.id)
+      .select('id');
+    if (restoreErr) return serverError(restoreErr.message);
+    if (!restored || restored.length === 0) return NextResponse.json({ error: 'Pelanggan tidak ditemukan.' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  }
+
+  const parsed = parseCustomer(body);
+  if (!parsed.ok) return badRequest(parsed.error);
 
   const { data: updated, error } = await admin
     .from('customers')
-    .update({
-      name,
-      email: String(body.email ?? '').trim().slice(0, 200),
-      phone: String(body.phone ?? '').trim().slice(0, 50),
-      address: String(body.address ?? '').trim().slice(0, 500),
-      notes: String(body.notes ?? '').trim().slice(0, 2000),
-    })
+    .update(parsed.value)
     .eq('id', params.id)
     .select('id');
 
@@ -45,15 +52,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   // Ganti daftar ID: hapus lalu isi ulang. Kalau pengisian gagal, ID lama dipulihkan
   // (dulu gagal di tengah berarti semua ID pelanggan hilang).
   if (Array.isArray(body.ids)) {
-    const idRows = body.ids
-      .filter((i: any) => i && String(i.id_number ?? '').trim())
-      .map((i: any, idx: number) => ({
-        customer_id: params.id,
-        id_type: i.id_type || 'lainnya',
-        id_label: i.id_label || 'ID',
-        id_number: String(i.id_number).trim().slice(0, 100),
-        is_primary: idx === 0,
-      }));
+    const idRows = buildIdRows(body.ids, params.id);
 
     const { data: oldRows } = await admin.from('customer_ids').select('*').eq('customer_id', params.id);
 

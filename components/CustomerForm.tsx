@@ -12,15 +12,17 @@ interface IdInput {
   id_number: string;
 }
 
-export default function CustomerForm({ initial }: { initial: Customer }) {
+// Tanpa `initial` = mode tambah pelanggan baru; dengan `initial` = mode edit.
+export default function CustomerForm({ initial }: { initial?: Customer }) {
   const router = useRouter();
-  const [name, setName] = useState(initial.name || '');
-  const [email, setEmail] = useState(initial.email || '');
-  const [phone, setPhone] = useState(initial.phone || '');
-  const [address, setAddress] = useState(initial.address || '');
-  const [notes, setNotes] = useState(initial.notes || '');
+  const isEdit = !!initial;
+  const [name, setName] = useState(initial?.name || '');
+  const [email, setEmail] = useState(initial?.email || '');
+  const [phone, setPhone] = useState(initial?.phone || '');
+  const [address, setAddress] = useState(initial?.address || '');
+  const [notes, setNotes] = useState(initial?.notes || '');
   const [ids, setIds] = useState<IdInput[]>(
-    (initial.ids || []).map((i) => ({
+    (initial?.ids || []).map((i) => ({
       id: i.id,
       id_type: i.id_type,
       id_label: i.id_label,
@@ -42,8 +44,8 @@ export default function CustomerForm({ initial }: { initial: Customer }) {
     setSaved(false);
 
     try {
-      const res = await fetch(`/api/admin/customers/${initial.id}`, {
-        method: 'PATCH',
+      const res = await fetch(isEdit ? `/api/admin/customers/${initial!.id}` : '/api/admin/customers', {
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, email, phone, address, notes,
@@ -52,6 +54,13 @@ export default function CustomerForm({ initial }: { initial: Customer }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal menyimpan');
+
+      if (!isEdit) {
+        // Pelanggan baru: langsung buka halamannya (kode pelanggan sudah dibuat server).
+        router.push(`/admin/pelanggan-customers/${data.id}`);
+        router.refresh();
+        return;
+      }
 
       setSaved(true);
       router.refresh();
@@ -65,7 +74,7 @@ export default function CustomerForm({ initial }: { initial: Customer }) {
 
   return (
     <form onSubmit={handleSubmit} className="admin-card">
-      <h3 style={{ marginBottom: 16 }}>Edit Data Pelanggan</h3>
+      <h3 style={{ marginBottom: 16 }}>{isEdit ? 'Edit Data Pelanggan' : 'Data Pelanggan Baru'}</h3>
 
       {error && (
         <div style={{ padding: '12px 16px', borderRadius: 9, background: '#fee2e2', color: '#991b1b', fontSize: '.86rem', marginBottom: 16 }}>
@@ -76,7 +85,7 @@ export default function CustomerForm({ initial }: { initial: Customer }) {
       <div className="admin-form-grid">
         <div>
           <label>Nama *</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} autoFocus={!isEdit} />
 
           <label>Email</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -154,7 +163,7 @@ export default function CustomerForm({ initial }: { initial: Customer }) {
           </span>
         )}
         <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? 'Menyimpan…' : 'Simpan Perubahan'}
+          {saving ? 'Menyimpan…' : isEdit ? 'Simpan Perubahan' : 'Tambah Pelanggan'}
         </button>
       </div>
     </form>

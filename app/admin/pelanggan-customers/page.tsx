@@ -8,38 +8,52 @@ import { PageHeader, SearchBar, Pagination, EmptyState, ErrorNote } from '@/comp
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Pelanggan' };
 
-type SearchParams = { q?: string; page?: string };
+type SearchParams = { q?: string; tampil?: string; page?: string };
 
 export default async function CustomersPage({ searchParams }: { searchParams: SearchParams }) {
   const q = safeSearch(searchParams.q);
+  const archived = searchParams.tampil === 'arsip';
   const page = parsePage(searchParams.page);
 
   const supabase = createAdminClient();
   let query = supabase
     .from('customers')
     .select('id, customer_code, name, email, phone, created_at, customer_ids(id, id_label, id_number)', { count: 'exact' })
-    .eq('is_archived', false);
+    .eq('is_archived', archived);
   if (q) query = query.or(`name.ilike.%${q}%,customer_code.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`);
 
   const [from, to] = pageRange(page);
   const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
 
   const totalPages = totalPagesOf(count);
-  if (page > totalPages) redirect(listHref('/admin/pelanggan-customers', { q, page: totalPages }));
+  if (page > totalPages) redirect(listHref('/admin/pelanggan-customers', { q, tampil: archived ? 'arsip' : '', page: totalPages }));
 
   const list = (data || []) as any[];
 
   return (
     <>
-      <PageHeader title="Pelanggan" count={count ?? 0} />
+      <PageHeader
+        title={archived ? 'Pelanggan Diarsipkan' : 'Pelanggan'}
+        count={count ?? 0}
+        actions={<Link href="/admin/pelanggan-customers/baru" className="btn btn-primary">+ Tambah Pelanggan</Link>}
+      />
 
       <div className="admin-card">
-        <SearchBar q={q} placeholder="Cari nama, kode, email, atau telepon…" reset={q ? '/admin/pelanggan-customers' : undefined} />
+        <SearchBar q={q} placeholder="Cari nama, kode, email, atau telepon…" reset={q || archived ? '/admin/pelanggan-customers' : undefined}>
+          <select name="tampil" defaultValue={archived ? 'arsip' : ''} aria-label="Tampilkan">
+            <option value="">Aktif</option>
+            <option value="arsip">Diarsipkan</option>
+          </select>
+        </SearchBar>
         <ErrorNote message={error?.message} />
 
         {list.length === 0 ? (
           <EmptyState>
-            {q ? 'Tidak ada pelanggan yang cocok.' : 'Belum ada pelanggan. Pelanggan muncul di sini setelah dibuat dari form kwitansi atau di-import.'}
+            {q
+              ? 'Tidak ada pelanggan yang cocok.'
+              : archived
+                ? 'Tidak ada pelanggan yang diarsipkan.'
+                : 'Belum ada pelanggan. Klik "+ Tambah Pelanggan" untuk membuat yang pertama.'}
           </EmptyState>
         ) : (
           <div className="admin-table-wrap">
@@ -78,7 +92,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Se
           </div>
         )}
 
-        <Pagination base="/admin/pelanggan-customers" params={{ q }} page={page} totalPages={totalPages} />
+        <Pagination base="/admin/pelanggan-customers" params={{ q, tampil: archived ? 'arsip' : '' }} page={page} totalPages={totalPages} />
       </div>
     </>
   );
