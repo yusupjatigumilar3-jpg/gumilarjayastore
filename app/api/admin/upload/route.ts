@@ -1,58 +1,49 @@
-﻿import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminUser, unauthorized, badRequest, serverError } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
+// Ekstensi diambil dari tipe file yang sudah divalidasi, bukan dari nama file buatan pengguna.
+const EXT_BY_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
 export async function POST(request: Request) {
   try {
-    const s = createClient();
-    const { data: { user } } = await s.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!(await getAdminUser())) return unauthorized();
 
     const fd = await request.formData();
-    const file = fd.get('file') as File | null;
+    const file = fd.get('file');
 
-    if (!file) {
-      return NextResponse.json({ error: 'File tidak ada' }, { status: 400 });
-    }
+    if (!file || typeof file === 'string') return badRequest('File tidak ada');
+    if (file.size > 5 * 1024 * 1024) return badRequest('File maksimal 5MB');
 
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: 'File maksimal 5MB' }, { status: 400 });
-    }
-
-    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowed.includes(file.type)) {
-      return NextResponse.json({ error: 'Hanya JPG, PNG, WEBP, GIF' }, { status: 400 });
-    }
+    const ext = EXT_BY_TYPE[file.type];
+    if (!ext) return badRequest('Hanya JPG, PNG, WEBP, GIF');
 
     const admin = createAdminClient();
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadErr } = await admin.storage
       .from('products')
-      .upload(filename, buffer, {
-        contentType: file.type,
-        upsert: false,
-      });
+      .upload(filename, buffer, { contentType: file.type, upsert: false });
 
     if (uploadErr) {
       console.error('Upload error:', uploadErr);
-      return NextResponse.json({ error: uploadErr.message }, { status: 500 });
+      return serverError(uploadErr.message);
     }
 
     const { data } = admin.storage.from('products').getPublicUrl(filename);
-
     return NextResponse.json({ url: data.publicUrl });
   } catch (err: any) {
     console.error('Upload error:', err);
-    return NextResponse.json({ error: err.message || 'Gagal upload' }, { status: 500 });
+    return serverError(err.message || 'Gagal upload');
   }
 }

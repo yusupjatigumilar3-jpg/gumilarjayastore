@@ -1,27 +1,31 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
 
 export async function GET() {
-  const s = createClient();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await getAdminUser())) return unauthorized();
   const admin = createAdminClient();
-  const { data } = await admin.from('faqs').select('*').order('sort_order');
+  const { data, error } = await admin.from('faqs').select('*').order('sort_order');
+  if (error) return serverError(error.message);
   return NextResponse.json({ data });
 }
 
 export async function POST(request: Request) {
-  const s = createClient();
-  const { data: { user } } = await s.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const b = await request.json();
+  if (!(await getAdminUser())) return unauthorized();
+  const b = await readJson(request);
+  if (!b) return badRequest('Data tidak valid.');
+
+  const question = String(b.question ?? '').trim().slice(0, 300);
+  const answer = String(b.answer ?? '').trim().slice(0, 5000);
+  if (!question || !answer) return badRequest('Pertanyaan dan jawaban wajib diisi.');
+
+  const sort = Math.round(Number(b.sort_order));
   const admin = createAdminClient();
   const { error } = await admin.from('faqs').insert({
-    question: b.question,
-    answer: b.answer,
-    sort_order: b.sort_order || 0,
+    question,
+    answer,
+    sort_order: Number.isFinite(sort) ? sort : 0,
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return serverError(error.message);
   return NextResponse.json({ ok: true });
 }

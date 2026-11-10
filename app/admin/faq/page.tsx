@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { PageHeader } from "@/components/admin/ui";
 import FaqManager from '@/components/FaqManager';
 import type { Faq } from '@/lib/types';
 
@@ -10,7 +11,7 @@ export default async function AdminFaqPage() {
   const { data } = await supabase.from('faqs').select('*').order('sort_order');
   return (
     <>
-      <h1 style={{ marginBottom: 24 }}>Pertanyaan Umum (FAQ)</h1>
+      <PageHeader title="Pertanyaan Umum (FAQ)" />
       <FaqManager initial={(data || []) as Faq[]} />
     </>
   );

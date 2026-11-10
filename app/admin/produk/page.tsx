@@ -1,45 +1,71 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { formatRupiah } from '@/lib/utils';
+import { PAGE_SIZE, parsePage, pageRange, totalPagesOf, safeSearch, listHref } from '@/lib/list-helpers';
+import { PageHeader, SearchBar, Pagination, EmptyState, ErrorNote } from '@/components/admin/ui';
+import Icon from '@/components/admin/Icon';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Produk' };
 
-export default async function ProductsPage() {
-  const supabase = createAdminClient();
-  const { data: products } = await supabase
-    .from('products')
-    .select('*, categories(name)')
-    .order('created_at', { ascending: false });
+type SearchParams = { q?: string; type?: string; page?: string };
 
-  const list = (products || []).map((p: any) => ({
-    ...p,
-    category_name: p.categories?.name || '—',
-  }));
+export default async function ProductsPage({ searchParams }: { searchParams: SearchParams }) {
+  const q = safeSearch(searchParams.q);
+  const type = searchParams.type === 'digital' || searchParams.type === 'fisik' ? searchParams.type : '';
+  const page = parsePage(searchParams.page);
+
+  const supabase = createAdminClient();
+  // Hanya kolom yang tampil di tabel (dulu select * ikut membawa deskripsi panjang tiap produk),
+  // dan dibatasi per halaman (dulu semua produk dimuat, terpotong diam-diam di 1000).
+  let query = supabase
+    .from('products')
+    .select('id, name, price, discount_price, type, image, service_type, categories(name)', { count: 'exact' });
+  if (type) query = query.eq('type', type);
+  if (q) query = query.ilike('name', `%${q}%`);
+
+  const [from, to] = pageRange(page);
+  const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
+
+  const totalPages = totalPagesOf(count);
+  if (page > totalPages) redirect(listHref('/admin/produk', { q, type, page: totalPages }));
+
+  const list = (data || []) as any[];
+  const filtered = !!(q || type);
 
   return (
     <>
-      <div className="admin-card-head">
-        <h1>Produk <span style={{ color: '#94a3b8', fontWeight: 500 }}>({list.length})</span></h1>
-        <Link href="/admin/produk/baru" className="btn btn-primary">+ Tambah Produk</Link>
-      </div>
+      <PageHeader
+        title="Produk"
+        count={count ?? 0}
+        actions={<Link href="/admin/produk/baru" className="btn btn-primary">+ Tambah Produk</Link>}
+      />
 
       <div className="admin-card">
+        <SearchBar q={q} placeholder="Cari nama produk…" reset={filtered ? '/admin/produk' : undefined}>
+          <select name="type" defaultValue={type} aria-label="Tipe">
+            <option value="">Semua tipe</option>
+            <option value="digital">Digital</option>
+            <option value="fisik">Fisik</option>
+          </select>
+        </SearchBar>
+
+        <ErrorNote message={error?.message} />
+
         {list.length === 0 ? (
-          <p style={{ color: '#64748b', padding: '40px 0', textAlign: 'center' }}>
-            Belum ada produk.
-          </p>
+          <EmptyState>{filtered ? 'Tidak ada produk yang cocok.' : 'Belum ada produk.'}</EmptyState>
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th style={{ width: 60 }}></th>
+                  <th style={{ width: 56 }}></th>
                   <th>Nama</th>
                   <th>Kategori</th>
                   <th>Tipe</th>
-                  <th>Harga</th>
-                  <th style={{ textAlign: 'right' }}>Aksi</th>
+                  <th className="a-num">Harga</th>
+                  <th className="a-num">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -47,32 +73,24 @@ export default async function ProductsPage() {
                   <tr key={p.id}>
                     <td>
                       {p.image ? (
-                        <img src={p.image} alt={p.name} style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }} />
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.image} alt="" className="a-thumb" loading="lazy" width={42} height={42} />
                       ) : (
-                        <div style={{ width: 44, height: 44, borderRadius: 8, background: '#eff6ff', display: 'grid', placeItems: 'center', color: '#2563eb', fontWeight: 700 }}>
-                          {p.service_type === 'listrik' ? '⚡' : p.type === 'digital' ? '📄' : '📦'}
-                        </div>
+                        <div className="a-thumb a-thumb-ph">{p.service_type === 'listrik' ? '⚡' : p.type === 'digital' ? 'D' : 'F'}</div>
                       )}
                     </td>
                     <td>
                       <div style={{ fontWeight: 700 }}>{p.name}</div>
-                      {p.service_type === 'listrik' && (
-                        <span style={{ fontSize: '.65rem', padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: 99, fontWeight: 700 }}>
-                          ⚡ LISTRIK
-                        </span>
-                      )}
+                      {p.service_type === 'listrik' && <span className="a-chip">⚡ Listrik</span>}
                     </td>
-                    <td>{p.category_name}</td>
+                    <td>{p.categories?.name || '—'}</td>
                     <td><span className={`badge ${p.type}`}>{p.type}</span></td>
-                    <td style={{ fontWeight: 700 }}>{formatRupiah(p.discount_price || p.price)}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <Link href={`/admin/produk/${p.id}`} style={{
-                        display: 'inline-grid', placeItems: 'center',
-                        width: 34, height: 34, borderRadius: 9,
-                        background: '#eff6ff', color: '#2563eb',
-                        border: '1px solid #bfdbfe',
-                        textDecoration: 'none', fontSize: '.9rem',
-                      }}>✎</Link>
+                    <td className="a-num" style={{ fontWeight: 700 }}>
+                      {formatRupiah(p.discount_price || p.price)}
+                      {p.discount_price ? <div className="a-muted" style={{ fontWeight: 400, fontSize: '.75rem', textDecoration: 'line-through' }}>{formatRupiah(p.price)}</div> : null}
+                    </td>
+                    <td className="a-num">
+                      <Link href={`/admin/produk/${p.id}`} className="a-icon-link" aria-label={`Edit ${p.name}`}><Icon name="edit" /></Link>
                     </td>
                   </tr>
                 ))}
@@ -80,6 +98,8 @@ export default async function ProductsPage() {
             </table>
           </div>
         )}
+
+        <Pagination base="/admin/produk" params={{ q, type }} page={page} totalPages={totalPages} />
       </div>
     </>
   );

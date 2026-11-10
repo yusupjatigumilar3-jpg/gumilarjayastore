@@ -2,21 +2,39 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { SettingsMap } from '@/lib/types';
+import Icon, { type IconName } from '@/components/admin/Icon';
 
-const MENU = [
-  { href: '/admin', label: 'Dashboard', icon: '📊', exact: true },
-  { href: '/admin/produk', label: 'Produk', icon: '📦' },
-  { href: '/admin/kategori', label: 'Kategori', icon: '🏷️' },
-  { href: '/admin/testimoni', label: 'Testimoni', icon: '💬' },
-  { href: '/admin/faq', label: 'FAQ', icon: '❓' },
-  { href: '/admin/pelanggan-customers', label: 'Pelanggan', icon: '👥' },
-  { href: '/admin/kwitansi', label: 'Kwitansi', icon: '📄' },
-  { href: '/admin/pesanan', label: 'Pesanan', icon: '🛒' },
-  { href: '/admin/import', label: 'Import', icon: '📥' },
-  { href: '/admin/riwayat-import', label: 'Riwayat', icon: '📋' },
-  { href: '/admin/pengaturan', label: 'Pengaturan', icon: '⚙️' },
+type Item = { href: string; label: string; icon: IconName; exact?: boolean };
+
+const GROUPS: { title: string; items: Item[] }[] = [
+  { title: '', items: [{ href: '/admin', label: 'Dashboard', icon: 'dashboard', exact: true }] },
+  {
+    title: 'Transaksi',
+    items: [
+      { href: '/admin/kwitansi', label: 'Kwitansi', icon: 'receipt' },
+      { href: '/admin/pesanan', label: 'Pesanan', icon: 'cart' },
+      { href: '/admin/pelanggan-customers', label: 'Pelanggan', icon: 'users' },
+    ],
+  },
+  {
+    title: 'Katalog',
+    items: [
+      { href: '/admin/produk', label: 'Produk', icon: 'box' },
+      { href: '/admin/kategori', label: 'Kategori', icon: 'tag' },
+      { href: '/admin/testimoni', label: 'Testimoni', icon: 'message' },
+      { href: '/admin/faq', label: 'FAQ', icon: 'help' },
+    ],
+  },
+  {
+    title: 'Data',
+    items: [
+      { href: '/admin/import', label: 'Import', icon: 'download' },
+      { href: '/admin/riwayat-import', label: 'Riwayat Import', icon: 'clock' },
+    ],
+  },
+  { title: 'Sistem', items: [{ href: '/admin/pengaturan', label: 'Pengaturan', icon: 'sliders' }] },
 ];
 
 export default function AdminShell({
@@ -28,83 +46,85 @@ export default function AdminShell({
   userName: string;
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() || '';
   const [open, setOpen] = useState(false);
 
+  // Tutup menu setiap pindah halaman; Esc juga menutup.
   useEffect(() => { setOpen(false); }, [pathname]);
   useEffect(() => {
-    document.body.style.overflow = open ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(href + '/');
 
   const logoSrc = settings.brand_logo_url || '';
-  const initials = settings.brand_logo_text || 'GJ';
+  const initials = (settings.brand_logo_text || 'GJ').slice(0, 2).toUpperCase();
 
   return (
-    <div className="adm">
-      <button
-        className={`adm-toggle ${open ? 'open' : ''}`}
-        onClick={() => setOpen(!open)}
-        aria-label="Menu"
-        type="button"
-      >
-        <span className="adm-toggle-icon" />
-      </button>
+    <div className="a-shell">
+      <div className={`a-scrim ${open ? 'open' : ''}`} onClick={() => setOpen(false)} />
 
-      {open && <div className="adm-overlay" onClick={() => setOpen(false)} />}
-
-      <aside className={`adm-sidebar ${open ? 'open' : ''}`}>
-        <Link href="/admin" className="adm-brand">
+      <aside className={`a-side ${open ? 'open' : ''}`} aria-label="Menu admin">
+        <Link href="/admin" className="a-brand">
           {logoSrc ? (
-            <img src={logoSrc} alt="Logo" className="adm-brand-logo" />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoSrc} alt="" className="a-brand-logo" />
           ) : (
-            <span className="adm-brand-mark">{initials.slice(0, 2).toUpperCase()}</span>
+            <span className="a-brand-mark">{initials}</span>
           )}
-          <span className="adm-brand-text">
+          <span className="a-brand-text">
             <b>{settings.site_name || 'Gumilar Jaya'}</b>
-            <small>Admin Panel</small>
+            <small>Admin</small>
           </span>
         </Link>
 
-        <nav className="adm-nav">
-          {MENU.map((m) => (
-            <Link
-              key={m.href}
-              href={m.href}
-              className={`adm-nav-link ${isActive(m.href, m.exact) ? 'active' : ''}`}
-            >
-              <span className="adm-nav-icon">{m.icon}</span>
-              <span className="adm-nav-label">{m.label}</span>
-            </Link>
+        <nav className="a-nav">
+          {GROUPS.map((g, i) => (
+            <div className="a-nav-group" key={g.title || i}>
+              {g.title && <div className="a-nav-title">{g.title}</div>}
+              {g.items.map((m) => (
+                <Link
+                  key={m.href}
+                  href={m.href}
+                  className={`a-nav-link ${isActive(m.href, m.exact) ? 'active' : ''}`}
+                  aria-current={isActive(m.href, m.exact) ? 'page' : undefined}
+                >
+                  <Icon name={m.icon} />
+                  {m.label}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
-
-        <div className="adm-sidebar-footer">
-          <Link href="/" target="_blank" className="adm-sidebar-footer-btn">
-            🌐 Lihat Situs
-          </Link>
-        </div>
       </aside>
 
-      <div className="adm-main">
-        <header className="adm-topbar">
-          <span className="adm-greeting">Halo, <b>{userName}</b></span>
-          <div className="adm-topbar-right">
-            <Link href="/" target="_blank" className="adm-topbar-btn">
-              🌐 <span className="adm-topbar-btn-label">Situs</span>
-            </Link>
-            <form action="/api/admin/logout" method="POST" style={{ display: 'inline' }}>
-              <button type="submit" className="adm-topbar-btn">
-                🚪 <span className="adm-topbar-btn-label">Keluar</span>
-              </button>
-            </form>
-          </div>
+      <div className="a-main">
+        <header className="a-top">
+          <button
+            type="button"
+            className="a-btn a-menu-btn"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Buka menu"
+            aria-expanded={open}
+          >
+            <Icon name="menu" />
+          </button>
+          <span className="a-top-greet">Halo, <b>{userName}</b></span>
+          <Link href="/" target="_blank" rel="noopener" className="a-btn">
+            <Icon name="external" /><span className="a-btn-label">Lihat situs</span>
+          </Link>
+          <form action="/api/admin/logout" method="POST">
+            <button type="submit" className="a-btn">
+              <Icon name="logout" /><span className="a-btn-label">Keluar</span>
+            </button>
+          </form>
         </header>
 
-        <div className="adm-body">{children}</div>
+        <main className="a-body">{children}</main>
       </div>
     </div>
   );

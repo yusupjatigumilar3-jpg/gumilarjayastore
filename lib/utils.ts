@@ -3,16 +3,18 @@ export function formatRupiah(n: number): string {
 }
 
 export function slugify(s: string): string {
-  return s
+  return String(s ?? '')
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .trim()
-    .replace(/\s+/g, '-');
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 }
 
 export function formatDate(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('id-ID', {
+    timeZone: 'Asia/Jakarta',
     day: '2-digit',
     month: 'long',
     year: 'numeric',
@@ -22,6 +24,7 @@ export function formatDate(date: string | Date): string {
 export function formatDateTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -40,4 +43,8 @@ export function initials(name: string): string {
 export function truncate(s: string, n: number): string {
   if (!s) return '';
   return s.length > n ? s.slice(0, n).trim() + '…' : s;
+}
+// Tanggal hari ini menurut WIB (YYYY-MM-DD), meski server berjalan di zona waktu UTC.
+export function todayWib(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
 }

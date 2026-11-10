@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { PageHeader } from "@/components/admin/ui";
 import SettingsForm from '@/components/SettingsForm';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,7 @@ export default async function SettingsPage() {
   const { data } = await supabase.from('settings').select('*').order('category').order('key');
   return (
     <>
-      <div className="admin-card-head"><h1>Pengaturan Situs</h1></div>
+      <PageHeader title="Pengaturan Situs" />
       <SettingsForm initial={data || []} />
     </>
   );
