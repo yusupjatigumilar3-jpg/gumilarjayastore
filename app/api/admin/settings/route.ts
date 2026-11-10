@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
 
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
     console.error('Settings save error:', error);
     return serverError(error.message);
   }
+
+  // Buang cache pengaturan agar perubahan langsung tampil di situs dan panel admin.
+  revalidateTag('settings');
 
   return NextResponse.json({ ok: true, saved: rows.length });
 }

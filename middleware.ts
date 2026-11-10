@@ -1,4 +1,4 @@
-﻿import { createServerClient } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
@@ -47,6 +47,22 @@ export async function middleware(request: NextRequest) {
     url.pathname = '/admin';
     url.search = '';
     return NextResponse.redirect(url);
+  }
+
+  // Teruskan identitas admin yang SUDAH diverifikasi ke layout, supaya layout tidak perlu
+  // memanggil Supabase Auth sekali lagi di setiap pindah halaman. Header dari klien
+  // selalu dibuang dulu, jadi tidak bisa dipalsukan.
+  if (pathname.startsWith('/admin')) {
+    const headers = new Headers(request.headers);
+    headers.delete('x-admin-uid');
+    headers.delete('x-admin-email');
+    if (user) {
+      headers.set('x-admin-uid', user.id);
+      headers.set('x-admin-email', user.email ?? '');
+    }
+    const forwarded = NextResponse.next({ request: { headers } });
+    supabaseResponse.cookies.getAll().forEach((c) => forwarded.cookies.set(c));
+    return forwarded;
   }
 
   return supabaseResponse;
