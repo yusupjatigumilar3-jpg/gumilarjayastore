@@ -1,4 +1,5 @@
-import type { Invoice, InvoiceItem } from '@/lib/types';
+import type { Invoice, InvoiceItem, InvoiceCustomerInfo } from '@/lib/types';
+import QrSvg from '@/components/QrSvg';
 import { formatRupiah, formatDate } from '@/lib/utils';
 import { terbilang } from '@/lib/terbilang';
 
@@ -7,9 +8,10 @@ interface Props {
   items: InvoiceItem[];
   settings: Record<string, string>;
   publicUrl?: string;
+  customer?: InvoiceCustomerInfo;
 }
 
-export default function InvoicePrintV4({ invoice, items, settings, publicUrl }: Props) {
+export default function InvoicePrintV4({ invoice, items, settings, publicUrl, customer }: Props) {
   const primary = settings.invoice_primary_color || settings.brand_primary_color || '#2563eb';
   const accent = settings.invoice_accent_color || settings.brand_secondary_color || '#10b981';
   const secondary = '#4b5563';
@@ -17,10 +19,8 @@ export default function InvoicePrintV4({ invoice, items, settings, publicUrl }: 
   const showQr = settings.invoice_show_qr !== 'false';
   const logoSrc = settings.brand_logo_url || '';
 
-  // QR CODE HITAM (default) — tanpa custom color
-  const qrUrl = publicUrl
-    ? `https://quickchart.io/qr?text=${encodeURIComponent(publicUrl)}&size=200&margin=1&ecLevel=M&dark=000000&light=ffffff`
-    : '';
+  const customerCode = invoice.customer_id_display || customer?.customer_code || '';
+  const customerIds = customer?.ids ?? [];
 
   const statusColor: Record<string, { bg: string; text: string; label: string }> = {
     draft: { bg: '#f1f5f9', text: '#475569', label: 'DRAFT' },
@@ -73,8 +73,13 @@ export default function InvoicePrintV4({ invoice, items, settings, publicUrl }: 
         <div className="inv4-meta-col">
           <div className="inv4-meta-label">Invoice To</div>
           <div className="inv4-customer-name">{invoice.customer_name}</div>
-          {invoice.customer_id_display && (
-            <div className="inv4-customer-code">Kode: {invoice.customer_id_display}</div>
+          {customerCode && <div className="inv4-customer-code">Kode: {customerCode}</div>}
+          {customerIds.length > 0 && (
+            <div className="inv-ids">
+              {customerIds.map((i, n) => (
+                <div key={n}><span>{i.id_label}</span> <b>{i.id_number}</b></div>
+              ))}
+            </div>
           )}
           <div className="inv4-customer-detail">
             {invoice.customer_address && <div>{invoice.customer_address}</div>}
@@ -149,10 +154,10 @@ export default function InvoicePrintV4({ invoice, items, settings, publicUrl }: 
             )}
           </div>
 
-          {showQr && qrUrl && (
+          {showQr && publicUrl && (
             <div className="inv4-qr-wrap">
-              <img src={qrUrl} alt="QR Code" className="inv4-qr" crossOrigin="anonymous" />
-              <div className="inv4-qr-caption">{settings.invoice_qr_caption || 'Scan untuk lihat kwitansi online'}</div>
+              <QrSvg value={publicUrl} size={100} className="inv4-qr" />
+              <div className="inv4-qr-caption">{settings.invoice_qr_caption || 'Scan untuk verifikasi kwitansi ini'}</div>
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import type { Invoice, InvoiceItem } from '@/lib/types';
+import type { Invoice, InvoiceItem, InvoiceCustomerInfo } from '@/lib/types';
 import InvoicePrintV3 from './InvoicePrintV3';
 import InvoicePrintV4 from './InvoicePrintV4';
 
@@ -7,6 +7,7 @@ interface Props {
   items: InvoiceItem[];
   settings: Record<string, string>;
   publicUrl?: string;
+  customer?: InvoiceCustomerInfo;
 }
 
 export default function InvoicePrint(props: Props) {
