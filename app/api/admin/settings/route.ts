@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAdminUser, unauthorized, badRequest, serverError, readJson } from '@/lib/admin-auth';
+import { validateSettings } from '@/lib/settings-schema';
 
 export async function GET() {
   if (!(await getAdminUser())) return unauthorized();
@@ -16,15 +17,15 @@ export async function POST(request: Request) {
   if (!(await getAdminUser())) return unauthorized();
 
   const body = await readJson(request);
-  if (!body || Object.keys(body).length === 0) return badRequest('Body kosong');
+  if (!body || Object.keys(body).length === 0) return badRequest('Tidak ada perubahan untuk disimpan.');
 
-  // Kunci pengaturan hanya huruf kecil, angka, dan garis bawah; nilai dibatasi panjangnya.
-  const rows: { key: string; value: string }[] = [];
-  for (const [key, value] of Object.entries(body)) {
-    if (!/^[a-z0-9_]{1,64}$/.test(key)) return badRequest(`Nama pengaturan tidak valid: ${key}`);
-    rows.push({ key, value: String(value ?? '').slice(0, 5000) });
+  // Aturan yang sama dengan form di browser (lib/settings-schema.ts), diperiksa ulang di server.
+  const { values, errors } = validateSettings(body);
+  if (Object.keys(errors).length > 0) {
+    return NextResponse.json({ error: 'Ada isian yang perlu diperbaiki.', fields: errors }, { status: 400 });
   }
 
+  const rows = Object.entries(values).map(([key, value]) => ({ key, value }));
   const admin = createAdminClient();
   const { error } = await admin.from('settings').upsert(rows, { onConflict: 'key' });
 
@@ -36,5 +37,6 @@ export async function POST(request: Request) {
   // Buang cache pengaturan agar perubahan langsung tampil di situs dan panel admin.
   revalidateTag('settings');
 
-  return NextResponse.json({ ok: true, saved: rows.length });
+  // `values` dikirim balik karena sebagian dirapikan server (mis. nomor WA, tautan Instagram).
+  return NextResponse.json({ ok: true, saved: rows.length, values });
 }
