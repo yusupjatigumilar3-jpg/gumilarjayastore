@@ -45,11 +45,14 @@ export default function InvoiceForm({
   initialItems,
   products,
   initialCustomer,
+  defaultAdminFee = DEFAULT_ADMIN_FEE,
 }: {
   initial: Invoice | null;
   initialItems: InvoiceItem[];
   products: Product[];
   initialCustomer?: Customer | null;
+  /** Biaya admin untuk kwitansi baru (dari Admin → Pengaturan). */
+  defaultAdminFee?: number;
 }) {
   const router = useRouter();
   // Tanggal lokal (WIB). toISOString() memakai UTC sehingga sebelum jam 07.00 WIB tanggalnya mundur sehari.
@@ -74,7 +77,7 @@ export default function InvoiceForm({
     discount: initial?.discount || 0,
     // Biaya admin tersimpan di kolom `tax`. Dulu dibaca dari `admin_fee` (kolom milik import) dan
     // memakai `|| 2500`, sehingga membuka kwitansi lama untuk diedit mengubah biaya admin & total diam-diam.
-    admin: initial ? toInt(initial.tax) : DEFAULT_ADMIN_FEE,
+    admin: initial ? toInt(initial.tax) : defaultAdminFee,
   });
 
   const [items, setItems] = useState<Item[]>(
@@ -387,7 +390,7 @@ export default function InvoiceForm({
                 fontSize: '.9rem', fontWeight: 700,
               }} />
             <div style={{ fontSize: '.72rem', color: '#64748b', marginTop: -6 }}>
-              Default: Rp {DEFAULT_ADMIN_FEE.toLocaleString('id-ID')}
+              Default: Rp {defaultAdminFee.toLocaleString('id-ID')}
             </div>
 
             <label>Diskon (Rp)</label>

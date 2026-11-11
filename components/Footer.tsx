@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { SettingsMap } from '@/lib/types';
+import { cleanPhone } from '@/lib/whatsapp';
+import { socialUrl } from '@/lib/settings-schema';
 
 export default function Footer({ settings }: { settings: SettingsMap }) {
   const year = new Date().getFullYear();
@@ -35,17 +37,17 @@ export default function Footer({ settings }: { settings: SettingsMap }) {
             <h4>Kontak</h4>
             <a href={`mailto:${settings.contact_email}`}>{settings.contact_email}</a>
             {settings.contact_whatsapp && (
-              <a href={`https://wa.me/${settings.contact_whatsapp}`} target="_blank" rel="noopener noreferrer">
+              <a href={`https://wa.me/${cleanPhone(settings.contact_whatsapp)}`} target="_blank" rel="noopener noreferrer">
                 WhatsApp
               </a>
             )}
-            {settings.social_instagram && (
-              <a href={settings.social_instagram} target="_blank" rel="noopener noreferrer">
+            {socialUrl(settings.social_instagram, 'instagram') && (
+              <a href={socialUrl(settings.social_instagram, 'instagram')!} target="_blank" rel="noopener noreferrer">
                 Instagram
               </a>
             )}
-            {settings.social_tiktok && (
-              <a href={settings.social_tiktok} target="_blank" rel="noopener noreferrer">
+            {socialUrl(settings.social_tiktok, 'tiktok') && (
+              <a href={socialUrl(settings.social_tiktok, 'tiktok')!} target="_blank" rel="noopener noreferrer">
                 TikTok
               </a>
             )}

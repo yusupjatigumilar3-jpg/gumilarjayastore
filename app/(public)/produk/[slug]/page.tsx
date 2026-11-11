@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { formatRupiah } from '@/lib/utils';
 import type { Product } from '@/lib/types';
+import { getSettings } from '@/lib/settings';
 import ProductCard from '@/components/ProductCard';
 
 export const dynamic = 'force-dynamic';
@@ -94,7 +95,9 @@ export default async function ProductDetailPage({
     return n;
   }
 
-  const waPhone = process.env.NEXT_PUBLIC_WHATSAPP || '';
+  // Nomor dari Admin → Pengaturan (sama seperti halaman lain); variable env hanya cadangan.
+  const settings = await getSettings();
+  const waPhone = settings.contact_whatsapp || process.env.NEXT_PUBLIC_WHATSAPP || '';
   const waMessage = `Halo, saya tertarik dengan produk ini:\n\n*${product.name}*\nHarga: ${isPriceZero ? 'Hubungi untuk harga' : formatRupiah(product.discount_price || product.price)}\n\nMohon info lebih lanjut.`;
   const waLink = waPhone
     ? `https://wa.me/${cleanPhone(waPhone)}?text=${encodeURIComponent(waMessage)}`

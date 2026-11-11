@@ -1,170 +1,248 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TemplateSwitcher from './TemplateSwitcher';
+import {
+  SETTINGS_GROUPS, SCHEMA_KEYS, HIDDEN_KEYS, validateSettings, type Field,
+} from '@/lib/settings-schema';
 
-type Setting = { key: string; value: string; category?: string };
+type Values = Record<string, string>;
 
-const GROUPS = [
-  { key: 'brand', title: '🎨 Identitas Brand', keys: ['site_name','site_tagline','site_description','brand_logo_text','brand_tagline','brand_address','brand_logo_url','brand_favicon_url','brand_primary_color','brand_secondary_color'] },
-  { key: 'contact', title: '📞 Kontak', keys: ['contact_email','contact_whatsapp','social_instagram','social_tiktok'] },
-  { key: 'hero', title: '🖼️ Hero Landing Page', keys: ['hero_eyebrow','hero_title','hero_subtitle'] },
-  { key: 'stats', title: '📊 Statistik', keys: ['stat_customers','stat_products','stat_rating','stat_ontime'] },
-  { key: 'bank', title: '🏦 Rekening', keys: ['brand_bank_name','brand_bank_account','brand_bank_holder'] },
-  { key: 'invoice', title: '📄 Kwitansi', keys: ['invoice_template','invoice_footer_note','invoice_thank_you','invoice_strip_text','invoice_primary_color','invoice_accent_color','invoice_show_qr','invoice_qr_caption','invoice_signature_name','invoice_signature_title'] },
-  { key: 'listrik', title: '⚡ Listrik & Utilitas', keys: ['listrik_default_admin_fee','listrik_default_penalty'] },
-  { key: 'notif', title: '🔔 Notifikasi', keys: ['whatsapp_template'] },
-];
-
-export default function SettingsForm({ initial }: { initial: Setting[] }) {
-  const router = useRouter();
-  const [values, setValues] = useState<Record<string, string>>(
-    Object.fromEntries(initial.map((s) => [s.key, s.value || '']))
-  );
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setSaved(false);
-    const res = await fetch('/api/admin/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(values),
-    });
-    setSaving(false);
-    if (res.ok) {
-      setSaved(true);
-      router.refresh();
-      setTimeout(() => setSaved(false), 3000);
-    } else {
-      alert('Gagal menyimpan.');
+// Isi awal tiap kolom: nilai di database, atau nilai bawaan skema bila barisnya belum ada.
+function withDefaults(initial: Values): Values {
+  const out: Values = { ...initial };
+  for (const g of SETTINGS_GROUPS) {
+    for (const f of g.fields) {
+      if (out[f.key] === undefined) out[f.key] = f.default ?? '';
     }
   }
+  return out;
+}
+
+export default function SettingsForm({ initial }: { initial: Values }) {
+  const router = useRouter();
+  const [saved, setSaved] = useState<Values>(() => withDefaults(initial));
+  const [values, setValues] = useState<Values>(() => withDefaults(initial));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [banner, setBanner] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Model kwitansi punya tombol sendiri yang menyimpan langsung, jadi tidak ikut dihitung sebagai perubahan.
+  const dirtyKeys = useMemo(
+    () => Object.keys(values).filter((k) => k !== 'invoice_template' && values[k] !== saved[k]),
+    [values, saved]
+  );
+  const dirty = dirtyKeys.length > 0;
+
+  // Peringatan bila halaman ditutup saat masih ada perubahan yang belum disimpan.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   function set(key: string, value: string) {
     setValues((v) => ({ ...v, [key]: value }));
+    if (errors[key]) setErrors((e) => { const n = { ...e }; delete n[key]; return n; });
+    setBanner(null);
   }
 
-  function humanize(key: string) {
-    return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  function focusFirstError(errs: Record<string, string>) {
+    const first = Object.keys(errs)[0];
+    if (!first) return;
+    const el = formRef.current?.querySelector<HTMLElement>(`[data-field="${first}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el?.querySelector<HTMLElement>('input, textarea')?.focus({ preventScroll: true });
   }
 
-  function isColor(key: string) { return key.includes('color'); }
-  function isImage(key: string) { return key.includes('logo') || key.includes('favicon'); }
-  function isBool(key: string) { return key === 'invoice_show_qr' || key === 'app_maintenance'; }
-  function isLong(key: string, value: string) {
-    return value.length > 60 || ['hero_subtitle','site_description','hero_title','invoice_footer_note','whatsapp_template','app_maintenance_message'].includes(key);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!dirty || saving) return;
+
+    const payload: Values = {};
+    dirtyKeys.forEach((k) => { payload[k] = values[k]; });
+
+    const local = validateSettings(payload);
+    if (Object.keys(local.errors).length > 0) {
+      setErrors(local.errors);
+      setBanner({ kind: 'err', text: 'Ada isian yang perlu diperbaiki.' });
+      focusFirstError(local.errors);
+      return;
+    }
+
+    setSaving(true);
+    setBanner(null);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.fields) { setErrors(data.fields); focusFirstError(data.fields); }
+        throw new Error(data.error || 'Gagal menyimpan.');
+      }
+      // Server merapikan sebagian nilai (nomor WA, tautan sosial); pakai hasilnya.
+      const clean: Values = { ...payload, ...(data.values || {}) };
+      setSaved((s) => ({ ...s, ...clean }));
+      setValues((v) => ({ ...v, ...clean }));
+      setErrors({});
+      setBanner({ kind: 'ok', text: `Tersimpan (${dirtyKeys.length} perubahan).` });
+      router.refresh();
+    } catch (err: any) {
+      setBanner({ kind: 'err', text: err.message || 'Gagal menyimpan.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function discard() {
+    setValues(saved);
+    setErrors({});
+    setBanner(null);
   }
 
   async function uploadFile(key: string, file: File) {
     setUploading(key);
+    setBanner(null);
     try {
       const fd = new FormData();
       fd.append('file', file);
       const res = await fetch('/api/admin/upload', { method: 'POST', body: fd });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Upload gagal');
       set(key, data.url);
     } catch (err: any) {
-      alert(err.message);
+      setErrors((e) => ({ ...e, [key]: err.message || 'Upload gagal' }));
     } finally {
       setUploading(null);
     }
   }
 
-  const knownKeys = new Set(GROUPS.flatMap((g) => g.keys));
-  const unknownKeys = initial.filter((s) => !knownKeys.has(s.key));
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {GROUPS.map((group) => {
-        const items = initial.filter((s) => group.keys.includes(s.key));
-        if (items.length === 0) return null;
+  function control(f: Field) {
+    const v = values[f.key] ?? '';
+    switch (f.type) {
+      case 'image':
         return (
-          <div key={group.key} className="admin-card" style={{ marginBottom: 20 }}>
-            <h3 style={{ marginBottom: 16 }}>{group.title}</h3>
-
-            {group.key === 'invoice' && (
-              <div style={{ marginBottom: 24, padding: 16, background: '#f8fafc', borderRadius: 12 }}>
-                <div style={{ fontSize: '.82rem', fontWeight: 700, marginBottom: 12, color: '#0b2745' }}>
-                  Model Kwitansi
-                </div>
-                <TemplateSwitcher current={values.invoice_template || 'v3'} />
-              </div>
+          <div className="st-image">
+            {v ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={v} alt={`Pratinjau ${f.label}`} />
+            ) : (
+              <div className="st-image-empty">Belum ada gambar</div>
             )}
-
-            <div className="admin-form-grid">
-              {items.filter((s) => s.key !== 'invoice_template').map((s) => (
-                <div key={s.key}>
-                  <label>{humanize(s.key)}</label>
-
-                  {isImage(s.key) ? (
-                    <div>
-                      {values[s.key] && (
-                        <div style={{ marginBottom: 10 }}>
-                          <img src={values[s.key]} alt="Preview"
-                            style={{ maxWidth: 120, maxHeight: 120, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 10, padding: 8, background: '#fff' }} />
-                        </div>
-                      )}
-                      <input type="file" accept="image/*"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(s.key, f); }}
-                        disabled={uploading === s.key} />
-                      {uploading === s.key && <p style={{ fontSize: '.78rem', color: '#2563eb', marginTop: 4 }}>Mengunggah…</p>}
-                    </div>
-                  ) : isColor(s.key) ? (
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <input type="color" value={values[s.key] || '#2563eb'} onChange={(e) => set(s.key, e.target.value)}
-                        style={{ width: 60, height: 44, padding: 4, cursor: 'pointer' }} />
-                      <input type="text" value={values[s.key] || ''} onChange={(e) => set(s.key, e.target.value)} style={{ flex: 1 }} />
-                    </div>
-                  ) : isBool(s.key) ? (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 9, background: '#fff' }}>
-                      <input type="checkbox" checked={values[s.key] === 'true'} onChange={(e) => set(s.key, e.target.checked ? 'true' : 'false')} />
-                      <span style={{ fontSize: '.86rem' }}>Aktifkan</span>
-                    </label>
-                  ) : isLong(s.key, values[s.key] || '') ? (
-                    <textarea rows={3} value={values[s.key] || ''} onChange={(e) => set(s.key, e.target.value)} />
-                  ) : (
-                    <input type="text" value={values[s.key] || ''} onChange={(e) => set(s.key, e.target.value)} />
-                  )}
-                </div>
-              ))}
+            <div className="st-image-actions">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                disabled={uploading === f.key}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadFile(f.key, file);
+                  e.target.value = '';
+                }}
+              />
+              {v && (
+                <button type="button" className="btn btn-ghost" onClick={() => set(f.key, '')}>Hapus gambar</button>
+              )}
             </div>
+            {uploading === f.key && <small className="st-help">Mengunggah…</small>}
           </div>
         );
-      })}
+      case 'color':
+        return (
+          <div className="st-color">
+            <input type="color" value={/^#[0-9a-f]{6}$/i.test(v) ? v : '#2563eb'} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label} />
+            <input type="text" value={v} onChange={(e) => set(f.key, e.target.value)} placeholder="#2563eb" maxLength={7} />
+          </div>
+        );
+      case 'toggle':
+        return (
+          <label className="st-toggle">
+            <input type="checkbox" checked={v === 'true'} onChange={(e) => set(f.key, e.target.checked ? 'true' : 'false')} />
+            <span>{v === 'true' ? 'Aktif' : 'Nonaktif'}</span>
+          </label>
+        );
+      case 'textarea':
+        return (
+          <>
+            <textarea rows={3} value={v} onChange={(e) => set(f.key, e.target.value)} />
+            {f.max && <small className={`st-count ${v.length > f.max ? 'over' : ''}`}>{v.length}/{f.max}</small>}
+          </>
+        );
+      case 'template':
+        return <TemplateSwitcher current={values.invoice_template || 'v3'} />;
+      default:
+        return (
+          <input
+            type={f.type === 'email' ? 'email' : 'text'}
+            inputMode={f.type === 'phone' ? 'tel' : f.type === 'number' ? 'numeric' : undefined}
+            value={v}
+            placeholder={f.placeholder}
+            onChange={(e) => set(f.key, e.target.value)}
+          />
+        );
+    }
+  }
 
-      {unknownKeys.length > 0 && (
-        <div className="admin-card">
-          <h3 style={{ marginBottom: 16 }}>🔧 Lainnya</h3>
+  const unknown = Object.keys(initial).filter((k) => !SCHEMA_KEYS.has(k) && !HIDDEN_KEYS.has(k)).sort();
+
+  return (
+    <form ref={formRef} onSubmit={handleSubmit} noValidate>
+      <nav className="st-nav" aria-label="Bagian pengaturan">
+        {SETTINGS_GROUPS.map((g) => (
+          <a key={g.id} href={`#st-${g.id}`}>{g.title}</a>
+        ))}
+        {unknown.length > 0 && <a href="#st-other">Lainnya</a>}
+      </nav>
+
+      {SETTINGS_GROUPS.map((g) => (
+        <section key={g.id} id={`st-${g.id}`} className="admin-card st-card">
+          <h3>{g.title}</h3>
+          {g.description && <p className="st-desc">{g.description}</p>}
           <div className="admin-form-grid">
-            {unknownKeys.map((s) => (
-              <div key={s.key}>
-                <label>{humanize(s.key)}</label>
-                <input type="text" value={values[s.key] || ''} onChange={(e) => set(s.key, e.target.value)} />
+            {g.fields.map((f) => (
+              <div key={f.key} data-field={f.key} className={`st-field ${f.wide ? 'st-wide' : ''} ${errors[f.key] ? 'has-error' : ''}`}>
+                <label>{f.label}{f.required && <span className="st-req"> *</span>}</label>
+                {control(f)}
+                {errors[f.key] ? <small className="st-err">{errors[f.key]}</small> : f.help ? <small className="st-help">{f.help}</small> : null}
               </div>
             ))}
           </div>
-        </div>
+        </section>
+      ))}
+
+      {unknown.length > 0 && (
+        <section id="st-other" className="admin-card st-card">
+          <h3>Lainnya</h3>
+          <p className="st-desc">Pengaturan tambahan yang ada di database tetapi belum punya kolom khusus.</p>
+          <div className="admin-form-grid">
+            {unknown.map((k) => (
+              <div key={k} data-field={k} className={`st-field ${errors[k] ? 'has-error' : ''}`}>
+                <label>{k}</label>
+                <input type="text" value={values[k] ?? ''} onChange={(e) => set(k, e.target.value)} />
+                {errors[k] && <small className="st-err">{errors[k]}</small>}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        gap: 12, padding: 16, background: '#fff', border: '1px solid #e2e8f0',
-        borderRadius: 12, position: 'sticky', bottom: 16, boxShadow: '0 -4px 20px rgba(15,23,42,.06)',
-      }}>
-        {saved ? (
-          <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Tersimpan</span>
-        ) : (
-          <span style={{ color: '#64748b', fontSize: '.82rem' }}>Perubahan tersimpan setelah menekan Simpan.</span>
-        )}
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? 'Menyimpan…' : 'Simpan Pengaturan'}
-        </button>
+      <div className="st-savebar" role="status" aria-live="polite">
+        <span className={banner ? (banner.kind === 'ok' ? 'st-ok' : 'st-bad') : 'st-note'}>
+          {banner ? banner.text : dirty ? `${dirtyKeys.length} perubahan belum disimpan` : 'Tidak ada perubahan.'}
+        </span>
+        <div className="st-savebar-actions">
+          {dirty && <button type="button" className="btn btn-ghost" onClick={discard} disabled={saving}>Batalkan</button>}
+          <button type="submit" className="btn btn-primary" disabled={!dirty || saving || uploading !== null}>
+            {saving ? 'Menyimpan…' : 'Simpan Pengaturan'}
+          </button>
+        </div>
       </div>
     </form>
   );
