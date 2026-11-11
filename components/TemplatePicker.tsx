@@ -10,7 +10,7 @@ export default function TemplatePicker({ value, onChange }: Props) {
     {
       id: 'v3',
       name: 'Modern Band',
-      desc: 'Header biru dengan band, cocok untuk invoice bisnis',
+      desc: 'Header biru dengan band, cocok untuk bukti pembayaran bisnis',
       preview: (
         <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto' }}>
           <rect width="200" height="140" fill="#fff" />
@@ -32,7 +32,7 @@ export default function TemplatePicker({ value, onChange }: Props) {
     {
       id: 'v4',
       name: 'Company Curve',
-      desc: 'Kurva biru atas-bawah, cocok untuk invoice formal',
+      desc: 'Kurva biru atas-bawah, cocok untuk bukti pembayaran formal',
       preview: (
         <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto' }}>
           <rect width="200" height="140" fill="#fff" />

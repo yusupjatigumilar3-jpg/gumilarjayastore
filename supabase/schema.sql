@@ -331,7 +331,7 @@ as $$
 declare
   v_ym     text := to_char(now() at time zone 'Asia/Jakarta', 'YYYY/MM');
   v_key    text := 'invoice:' || to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM');
-  v_prefix text := 'GJS/' || to_char(now() at time zone 'Asia/Jakarta', 'YYYY/MM') || '/';
+  v_prefix text := 'INV/' || to_char(now() at time zone 'Asia/Jakarta', 'YYYY/MM') || '/';
   v_seed   integer;
   v_next   integer;
 begin
@@ -342,11 +342,11 @@ begin
   if v_next is null then
     -- Bulan ini belum punya penghitung: mulai dari nomor tertinggi yang sudah ada
     -- (kwitansi bernomor manual atau hasil import ikut diperhitungkan).
-    select coalesce(max(substring(invoice_number from char_length(v_prefix) + 1)::integer), 0)
+    -- Awalan apa pun ikut dihitung (mis. nomor lama "GJS/..." di bulan yang sama), supaya tidak bentrok.
+    select coalesce(max(substring(invoice_number from '[0-9]+$')::integer), 0)
       into v_seed
       from invoices
-     where invoice_number like v_prefix || '%'
-       and substring(invoice_number from char_length(v_prefix) + 1) ~ '^[0-9]{1,9}$';
+     where invoice_number ~ ('^[A-Za-z]+/' || v_ym || '/[0-9]{1,9}$');
 
     insert into doc_counters as c (key, last_value)
     values (v_key, v_seed + 1)

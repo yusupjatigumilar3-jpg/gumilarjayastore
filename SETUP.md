@@ -33,7 +33,7 @@ Opsional: `NEXT_PUBLIC_WHATSAPP` (nomor WhatsApp di halaman produk).
 
 - Buka `https://domain-anda/login` dan masuk dengan akun dari langkah 5. Berhasil masuk ke `/admin` berarti URL dan anon key benar.
 - Buka **Admin → Pengaturan** lalu simpan. Berhasil berarti service role key dan tabel `settings` benar.
-- Buat satu kwitansi di **Admin → Kwitansi**. Nomornya `GJS/TAHUN/BULAN/0001`.
+- Buat satu kwitansi di **Admin → Kwitansi**. Nomornya `INV/TAHUN/BULAN/0001`.
 
 ## Pesan error yang sering muncul
 
