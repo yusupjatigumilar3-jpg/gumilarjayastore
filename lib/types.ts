@@ -111,6 +111,12 @@ export interface Customer {
   customer_ids?: CustomerId[];
 }
 
+// Data pelanggan yang ikut tampil di kwitansi cetak.
+export interface InvoiceCustomerInfo {
+  customer_code: string;
+  ids: { id_label: string; id_number: string }[];
+}
+
 // ============ INVOICES ============
 export interface Invoice {
   id: string;

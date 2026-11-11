@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getSettings } from '@/lib/settings';
 import InvoicePrint from '@/components/InvoicePrint';
 import PrintButton from '@/components/PrintButton';
+import { invoicePublicUrl } from '@/lib/site-url';
+import { loadInvoiceCustomer } from '@/lib/invoice-view';
 import type { Invoice, InvoiceItem } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +30,10 @@ export default async function InvoicePublicPage({
     .eq('invoice_id', invoice.id)
     .order('created_at');
 
-  const settings = await getSettings();
+  const [settings, customer] = await Promise.all([
+    getSettings(),
+    loadInvoiceCustomer(supabase, invoice.customer_id),
+  ]);
 
   return (
     <>
@@ -51,6 +56,8 @@ export default async function InvoicePublicPage({
         invoice={invoice as Invoice}
         items={(items || []) as InvoiceItem[]}
         settings={settings}
+        publicUrl={invoicePublicUrl(invoice.public_token)}
+        customer={customer}
       />
     </>
   );

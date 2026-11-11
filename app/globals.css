@@ -1517,8 +1517,14 @@ footer{background:var(--bg-soft);border-top:1px solid var(--line);padding:64px 0
   .inv4-terms-sign{ grid-template-columns: 1fr; gap: 32px; padding: 20px 20px 32px; }
 }
 
+/* ID pelanggan di kwitansi (dipakai templat V3 dan V4) */
+.inv-ids{margin:2px 0 8px;display:flex;flex-direction:column;gap:2px;font-size:.82rem;color:#334155}
+.inv-ids span{color:#64748b}
+.inv-ids b{font-family:'SF Mono',Consolas,monospace;font-weight:700;color:#0f172a}
+
 /* ============ QR CODE PRINT SUPPORT ============ */
-.inv3-qr img,
+.inv3-qr svg{display:block;border-radius:8px}
+.inv3-qr svg,
 .inv4-qr {
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
@@ -1526,7 +1532,7 @@ footer{background:var(--bg-soft);border-top:1px solid var(--line);padding:64px 0
 
 @media print{
   .inv3-qr,
-  .inv3-qr img,
+  .inv3-qr svg,
   .inv4-qr-wrap,
   .inv4-qr {
     display: block !important;
