@@ -156,7 +156,7 @@ export async function POST(request: Request) {
   const invoiceNumbers: string[] = [];
   for (let i = 0; i < rows.length; i++) {
     const { data: num } = await admin.rpc('next_invoice_number');
-    invoiceNumbers.push((num as unknown as string) || `GJS/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${String(chunkIndex * 100 + i + 1).padStart(4, '0')}`);
+    invoiceNumbers.push((num as unknown as string) || `INV/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${String(chunkIndex * 100 + i + 1).padStart(4, '0')}`);
   }
 
   // ---------- STEP 4: Batch insert invoices ----------

@@ -15,6 +15,9 @@ export function jakartaYearMonth(d: Date = new Date()): { year: string; month: s
   };
 }
 
+/** Awalan nomor bukti pembayaran. Harus sama dengan fungsi SQL next_invoice_number (supabase/schema.sql). */
+export const INVOICE_PREFIX = 'INV';
+
 /**
  * Satu-satunya pembuat nomor kwitansi otomatis (form baru, endpoint next-number).
  * Memakai fungsi SQL next_invoice_number (sama seperti import) agar penomoran
@@ -25,19 +28,21 @@ export async function generateInvoiceNumber(admin: AdminClient): Promise<string>
   if (!error && typeof data === 'string' && data.trim()) return data.trim();
 
   const { year, month } = jakartaYearMonth();
-  const prefix = `GJS/${year}/${month}/`;
+  const prefix = `${INVOICE_PREFIX}/${year}/${month}/`;
   const { data: rows } = await admin
     .from('invoices')
     .select('invoice_number')
-    .like('invoice_number', prefix + '%')
+    .like('invoice_number', `%/${year}/${month}/%`)
     .order('invoice_number', { ascending: false })
-    .limit(50);
+    .limit(200);
 
-  // Ambil angka tertinggi; nomor manual non-numerik (mis. ".../ABC") diabaikan, bukan menghasilkan "NaN".
+  // Ambil angka tertinggi dari awalan apa pun (nomor lama "GJS/..." ikut dihitung);
+  // nomor manual non-numerik (mis. ".../ABC") diabaikan, bukan menghasilkan "NaN".
+  const re = new RegExp(`^[A-Za-z]+/${year}/${month}/(\\d+)$`);
   let max = 0;
   for (const r of rows || []) {
-    const tail = String(r.invoice_number || '').slice(prefix.length);
-    if (/^\d+$/.test(tail)) max = Math.max(max, parseInt(tail, 10));
+    const m = re.exec(String(r.invoice_number || ''));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return prefix + String(max + 1).padStart(4, '0');
 }

@@ -44,7 +44,7 @@ export default function InvoicePrintV3({ invoice, items, settings, publicUrl, cu
           </div>
         </div>
         <div className="inv3-band-right">
-          <div className="inv3-band-label">KWITANSI</div>
+          <div className="inv3-band-label">BUKTI PEMBAYARAN</div>
           <div className="inv3-band-number">{invoice.invoice_number}</div>
         </div>
       </div>

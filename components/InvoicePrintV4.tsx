@@ -65,13 +65,13 @@ export default function InvoicePrintV4({ invoice, items, settings, publicUrl, cu
       </div>
 
       <div className="inv4-title-wrap">
-        <div className="inv4-title">INVOICE</div>
+        <div className="inv4-title">BUKTI PEMBAYARAN</div>
         <div className="inv4-title-line" style={{ background: primary }} />
       </div>
 
       <div className="inv4-meta">
         <div className="inv4-meta-col">
-          <div className="inv4-meta-label">Invoice To</div>
+          <div className="inv4-meta-label">Ditagihkan Kepada</div>
           <div className="inv4-customer-name">{invoice.customer_name}</div>
           {customerCode && <div className="inv4-customer-code">Kode: {customerCode}</div>}
           {customerIds.length > 0 && (
@@ -90,7 +90,7 @@ export default function InvoicePrintV4({ invoice, items, settings, publicUrl, cu
 
         <div className="inv4-meta-col inv4-meta-right">
           <div className="inv4-meta-item">
-            <span className="inv4-meta-item-label">Invoice #</span>
+            <span className="inv4-meta-item-label">No. Bukti</span>
             <span className="inv4-meta-item-value">{invoice.invoice_number}</span>
           </div>
           <div className="inv4-meta-item">
