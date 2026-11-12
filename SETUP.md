@@ -7,7 +7,7 @@ Aplikasi ini butuh **4 environment variable**. Tanpa tiga yang pertama, halaman 
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL, mis. `https://abcd1234.supabase.co` | Tidak |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Kunci `anon` / *publishable* | Tidak (terlihat di browser) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Kunci `service_role` / *secret* | **YA. Jangan dibagikan atau di-commit** |
-| `NEXT_PUBLIC_SITE_URL` | Domain situs, mis. `https://gumilarjayastore.vercel.app` (tanpa `/` di akhir) | Tidak |
+| `NEXT_PUBLIC_SITE_URL` | Opsional. Tautan kwitansi otomatis mengikuti domain yang sedang dipakai; isi hanya sebagai cadangan | Tidak |
 
 Opsional: `NEXT_PUBLIC_WHATSAPP` (nomor WhatsApp di halaman produk).
 
