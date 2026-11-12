@@ -1891,3 +1891,17 @@ footer{background:var(--bg-soft);border-top:1px solid var(--line);padding:64px 0
   background: #fff;
   padding: 2px;
 }
+
+/* ---------- Cetak: kwitansi harus muat 1 halaman A4 ---------- */
+@page { size: A4 portrait; margin: 8mm; }
+@media print {
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; height: auto !important; }
+  .no-print { display: none !important; }
+  .a4-fit { margin: 0 auto; break-inside: avoid; page-break-inside: avoid; break-after: avoid; page-break-after: avoid; }
+  .a4-fit .invoice-v3, .a4-fit .invoice-v4 {
+    margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; max-width: none !important;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .a4-fit tr { break-inside: avoid; page-break-inside: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
