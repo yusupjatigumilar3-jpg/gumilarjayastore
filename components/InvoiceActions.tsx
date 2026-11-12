@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Invoice } from '@/lib/types';
+import DuplicateInvoiceButton from '@/components/DuplicateInvoiceButton';
 
 export default function InvoiceActions({ invoice }: { invoice: Invoice }) {
   const router = useRouter();
@@ -158,6 +159,7 @@ export default function InvoiceActions({ invoice }: { invoice: Invoice }) {
         >
           Lihat Publik
         </a>
+        <DuplicateInvoiceButton id={invoice.id} number={invoice.invoice_number} variant="button" />
       </div>
 
       {/* DELETE */}

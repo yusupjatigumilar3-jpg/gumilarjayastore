@@ -6,6 +6,8 @@ import { INVOICE_STATUSES, STATUS_LABEL, isInvoiceStatus } from '@/lib/invoice-c
 import { parsePage, pageRange, totalPagesOf, safeSearch, listHref } from '@/lib/list-helpers';
 import { PageHeader, SearchBar, Pagination, EmptyState, ErrorNote, StatusBadge } from '@/components/admin/ui';
 import Icon from '@/components/admin/Icon';
+import DeleteButton from '@/components/DeleteButton';
+import DuplicateInvoiceButton from '@/components/DuplicateInvoiceButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Kwitansi' };
@@ -76,8 +78,18 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Sea
                     <td><b>{inv.customer_name}</b></td>
                     <td className="a-num"><b>{formatRupiah(inv.total)}</b></td>
                     <td><StatusBadge status={inv.status} /></td>
-                    <td className="a-num">
-                      <Link href={`/admin/kwitansi/${inv.id}`} className="a-icon-link" aria-label={`Buka ${inv.invoice_number}`}><Icon name="eye" /></Link>
+                    <td className="a-num" style={{ whiteSpace: 'nowrap' }}>
+                      <Link href={`/admin/kwitansi/${inv.id}`} className="a-icon-link" aria-label={`Buka ${inv.invoice_number}`}><Icon name="eye" /></Link>{' '}
+                      <Link href={`/admin/kwitansi/${inv.id}/edit`} className="a-icon-link" aria-label={`Edit ${inv.invoice_number}`}><Icon name="edit" /></Link>{' '}
+                      <DuplicateInvoiceButton id={inv.id} number={inv.invoice_number} />
+                      <DeleteButton
+                        url={`/api/admin/invoices/${inv.id}`}
+                        confirmMessage={
+                          inv.status === 'dibayar'
+                            ? `Kwitansi ${inv.invoice_number} sudah LUNAS. Menghapusnya menghilangkan bukti pembayaran secara permanen (pertimbangkan status Batal). Tetap hapus?`
+                            : `Hapus kwitansi ${inv.invoice_number}?`
+                        }
+                      />
                     </td>
                   </tr>
                 ))}
