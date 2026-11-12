@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getSettings } from '@/lib/settings';
 import InvoicePrint from '@/components/InvoicePrint';
 import PrintButton from '@/components/PrintButton';
+import InvoicePdfActions from '@/components/InvoicePdfActions';
 import { invoicePublicUrl } from '@/lib/site-url';
 import { loadInvoiceCustomer } from '@/lib/invoice-view';
 import type { Invoice, InvoiceItem } from '@/lib/types';
@@ -49,7 +50,10 @@ export default async function InvoicePublicPage({
 
       <div className="toolbar-print no-print">
         <a href="/cek-kwitansi" className="btn btn-ghost">← Cek Kwitansi Lain</a>
-        <PrintButton />
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <InvoicePdfActions invoiceNumber={invoice.invoice_number} />
+          <PrintButton />
+        </div>
       </div>
 
       <InvoicePrint

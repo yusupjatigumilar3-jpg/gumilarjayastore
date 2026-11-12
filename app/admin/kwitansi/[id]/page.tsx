@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { getSettings } from '@/lib/settings';
 import InvoicePrint from '@/components/InvoicePrint';
 import PrintButton from '@/components/PrintButton';
+import InvoicePdfActions from '@/components/InvoicePdfActions';
 import TemplateSwitcher from '@/components/TemplateSwitcher';
 import { invoicePublicUrl } from '@/lib/site-url';
 import { loadInvoiceCustomer } from '@/lib/invoice-view';
@@ -43,6 +44,7 @@ export default async function AdminInvoiceDetail({
         <h1>Kwitansi {invoice.invoice_number}</h1>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link href="/admin/kwitansi" className="btn btn-ghost">← Kembali</Link>
+          <InvoicePdfActions invoiceNumber={invoice.invoice_number} />
           <PrintButton />
         </div>
       </div>
