@@ -5,15 +5,18 @@ import { formatRupiah } from '@/lib/utils';
 import { PAGE_SIZE, parsePage, pageRange, totalPagesOf, safeSearch, listHref } from '@/lib/list-helpers';
 import { PageHeader, SearchBar, Pagination, EmptyState, ErrorNote } from '@/components/admin/ui';
 import Icon from '@/components/admin/Icon';
+import DeleteButton from '@/components/DeleteButton';
+import DuplicateProductButton from '@/components/DuplicateProductButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Produk' };
 
-type SearchParams = { q?: string; type?: string; page?: string };
+type SearchParams = { q?: string; type?: string; kategori?: string; page?: string };
 
 export default async function ProductsPage({ searchParams }: { searchParams: SearchParams }) {
   const q = safeSearch(searchParams.q);
   const type = searchParams.type === 'digital' || searchParams.type === 'fisik' ? searchParams.type : '';
+  const kategori = /^[0-9a-f-]{36}$/i.test(searchParams.kategori || '') ? String(searchParams.kategori) : '';
   const page = parsePage(searchParams.page);
 
   const supabase = createAdminClient();
@@ -23,16 +26,18 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
     .from('products')
     .select('id, name, price, discount_price, type, image, service_type, categories(name)', { count: 'exact' });
   if (type) query = query.eq('type', type);
+  if (kategori) query = query.eq('category_id', kategori);
   if (q) query = query.ilike('name', `%${q}%`);
 
+  const { data: cats } = await supabase.from('categories').select('id, name').order('sort_order');
   const [from, to] = pageRange(page);
   const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
 
   const totalPages = totalPagesOf(count);
-  if (page > totalPages) redirect(listHref('/admin/produk', { q, type, page: totalPages }));
+  if (page > totalPages) redirect(listHref('/admin/produk', { q, type, kategori, page: totalPages }));
 
   const list = (data || []) as any[];
-  const filtered = !!(q || type);
+  const filtered = !!(q || type || kategori);
 
   return (
     <>
@@ -48,6 +53,10 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
             <option value="">Semua tipe</option>
             <option value="digital">Digital</option>
             <option value="fisik">Fisik</option>
+          </select>
+          <select name="kategori" defaultValue={kategori} aria-label="Kategori">
+            <option value="">Semua kategori</option>
+            {(cats || []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </SearchBar>
 
@@ -89,8 +98,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
                       {formatRupiah(p.discount_price || p.price)}
                       {p.discount_price ? <div className="a-muted" style={{ fontWeight: 400, fontSize: '.75rem', textDecoration: 'line-through' }}>{formatRupiah(p.price)}</div> : null}
                     </td>
-                    <td className="a-num">
-                      <Link href={`/admin/produk/${p.id}`} className="a-icon-link" aria-label={`Edit ${p.name}`}><Icon name="edit" /></Link>
+                    <td className="a-num" style={{ whiteSpace: 'nowrap' }}>
+                      <Link href={`/admin/produk/${p.id}`} className="a-icon-link" aria-label={`Edit ${p.name}`}><Icon name="edit" /></Link>{' '}
+                      <DuplicateProductButton id={p.id} name={p.name} />
+                      <DeleteButton
+                        url={`/api/admin/products/${p.id}`}
+                        confirmMessage={`Hapus produk "${p.name}"? Kwitansi lama tetap utuh, hanya tautan ke produk ini yang dilepas.`}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -99,7 +113,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
           </div>
         )}
 
-        <Pagination base="/admin/produk" params={{ q, type }} page={page} totalPages={totalPages} />
+        <Pagination base="/admin/produk" params={{ q, type, kategori }} page={page} totalPages={totalPages} />
       </div>
     </>
   );
